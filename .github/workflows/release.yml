@@ -1,0 +1,70 @@
+name: Release
+
+# Build, sign, and publish a DMG whenever a version tag (e.g. v1.0.0) is pushed:
+#   git tag v1.0.0 && git push origin v1.0.0
+#
+# Requires two repository secrets (Settings ▸ Secrets and variables ▸ Actions):
+#   SIGNING_CERTIFICATE_P12_BASE64  — base64 of the exported "CopyStack Self-Signed"
+#                                     certificate *with its private key* (.p12)
+#   SIGNING_CERTIFICATE_PASSWORD    — the password set when exporting that .p12
+#
+# Note: this signs with a self-signed certificate (stable identity across updates,
+# so users keep their Accessibility permission). It is NOT Apple-notarized, so the
+# first launch still needs a one-time right-click ▸ Open.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write   # needed to create the GitHub Release
+
+jobs:
+  release:
+    runs-on: macos-14
+    env:
+      SIGN_IDENTITY: "CopyStack Self-Signed"
+      KEYCHAIN_PASSWORD: "ci-temporary-keychain-password"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Import signing certificate into a temporary keychain
+        env:
+          P12_BASE64: ${{ secrets.SIGNING_CERTIFICATE_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+
+          echo "$P12_BASE64" | base64 --decode > "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERT_PATH" -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          # Keep the existing keychains searchable, with ours added to the list.
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | sed 's/"//g')
+          # Allow codesign to use the key without an interactive prompt.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+
+          rm -f "$CERT_PATH"
+
+      - name: Build and package the DMG
+        env:
+          DMG_OUT: ${{ runner.temp }}/CopyStack.dmg
+        run: ./build-release.sh
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: CopyStack ${{ github.ref_name }}
+          files: ${{ runner.temp }}/CopyStack.dmg
+          body: |
+            CopyStack ${{ github.ref_name }}
+
+            **Install:** download `CopyStack.dmg`, open it, and drag CopyStack into
+            Applications. On first launch, right-click the app ▸ **Open** (it is signed
+            with a self-signed certificate and not notarized by Apple), then grant
+            **Accessibility** permission when prompted.

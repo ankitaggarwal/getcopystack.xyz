@@ -27,7 +27,7 @@ SIGN_IDENTITY="${SIGN_IDENTITY:-CopyStack Self-Signed}"
 PROJECT="Copy Stack.xcodeproj"
 SCHEME="Copy Stack"
 APP_NAME="Copy Stack.app"
-DMG_OUT="$HOME/Desktop/CopyStack.dmg"
+DMG_OUT="${DMG_OUT:-$HOME/Desktop/CopyStack.dmg}"
 DERIVED="./build"
 
 cd "$(dirname "$0")"
