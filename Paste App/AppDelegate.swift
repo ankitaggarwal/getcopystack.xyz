@@ -54,7 +54,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 enum UpdateChecker {
     /// GitHub "owner/repo" whose Releases are checked for new versions.
     /// Set this to the repository you publish your tagged DMG releases to.
-    static let repo = "YOUR_GITHUB_USERNAME/CopyStack"
+    static let repo = "ankitaggarwal/getcopystack.xyz"
 
     /// `silent` (automatic checks) shows nothing unless an update exists;
     /// when false (manual check) it also reports "up to date" or errors.

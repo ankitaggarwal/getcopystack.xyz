@@ -402,7 +402,7 @@ struct AboutView: View {
 
             // Link to the project on GitHub. Update the URL to your repository.
             Button(action: {
-                if let url = URL(string: "https://github.com/YOUR_GITHUB_USERNAME/CopyStack") {
+                if let url = URL(string: "https://github.com/ankitaggarwal/getcopystack.xyz") {
                     NSWorkspace.shared.open(url)
                 }
             }) {
