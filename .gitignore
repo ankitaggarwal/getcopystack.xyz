@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+
+# Xcode build output / derived data
+build/
+DerivedData/
+*.xcarchive
+
+# Xcode user-specific state (window layout, breakpoints, etc.)
+xcuserdata/
+*.xcuserstate
+
+# Distribution artifacts
+*.dmg
+
+# Signing certificate — NEVER commit (it's a private signing key)
+*.p12
+
+# Local AI-assistant notes / private dev guide — not part of the product
+CLAUDE.md
+CLAUDE.local.md
+.claude/
