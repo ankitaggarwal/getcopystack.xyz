@@ -50,6 +50,22 @@ apps like WhatsApp and Slack.
 - **Accessibility permission** (System Settings ▸ Privacy & Security ▸ Accessibility),
   required because the app simulates `Cmd+C` / `Cmd+V`
 
+## Install
+
+1. Download `CopyStack.dmg` from the [Releases](https://github.com/ankitaggarwal/getcopystack.xyz/releases) page.
+2. Open the DMG and drag **CopyStack** into your **Applications** folder.
+3. **First launch:** the app is signed with a self-signed certificate (not notarized
+   by Apple), so macOS will block it the first time with a *"cannot be opened"* /
+   *"unidentified developer"* warning. To get past it **once**:
+   - **Right-click** (or Control-click) CopyStack in Applications → **Open** → **Open**, or
+   - go to **System Settings ▸ Privacy & Security**, scroll down, and click **Open Anyway**.
+
+   After that first time, it opens normally like any other app.
+4. Grant **Accessibility permission** when prompted (System Settings ▸ Privacy &
+   Security ▸ Accessibility) — required so CopyStack can simulate `Cmd+C` / `Cmd+V`.
+
+> Prefer not to trust a self-signed build? Build it yourself from source instead — see below.
+
 ## Build & run
 
 1. Open `Copy Stack.xcodeproj` in Xcode.
