@@ -3,8 +3,9 @@
 //  Copy Stack
 //
 //  Registers the global hotkeys via the Carbon Event Manager: Cmd+Shift+C to
-//  copy and toggle the stack window, and a system-wide Cmd+V intercept that
-//  pastes the next stack item (or falls through to a normal paste when empty).
+//  copy and toggle the stack window, and a Cmd+V intercept that pastes the
+//  next stack item. The Cmd+V hotkey is only registered while the stack has
+//  items, so an empty stack never interferes with normal system paste.
 //
 //  Created by Ankit Aggarwal
 //
@@ -13,6 +14,7 @@ import Foundation
 import AppKit
 import Carbon
 import ApplicationServices
+import Combine
 
 class HotkeyManager {
     static let shared = HotkeyManager()
@@ -27,6 +29,9 @@ class HotkeyManager {
     // Hotkey for Cmd+V (paste from stack)
     private var pasteHotKeyID = EventHotKeyID()
     private var pasteHotKeyRef: EventHotKeyRef?
+
+    // Registers/unregisters the Cmd+V hotkey as the stack fills/empties
+    private var itemsCancellable: AnyCancellable?
 
     // Get current shortcut from preferences
     private var currentKeyCode: UInt32 {
@@ -61,7 +66,44 @@ class HotkeyManager {
     }
     
     func registerHotkeys() {
-        // Install the Carbon event handler
+        installEventHandlerIfNeeded()
+
+        // Register Cmd+Shift+C hotkey (copy and show stack)
+        let copyResult = RegisterEventHotKey(
+            currentKeyCode,
+            currentModifiers,
+            copyHotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &copyHotKeyRef
+        )
+
+        if copyResult == noErr {
+            print("HotkeyManager: Successfully registered copy hotkey - keyCode: \(currentKeyCode), modifiers: \(currentModifiers)")
+        } else {
+            print("HotkeyManager: Failed to register copy hotkey - error code: \(copyResult)")
+        }
+
+        // Only intercept Cmd+V while the stack actually has items. A registered
+        // hotkey consumes the keystroke system-wide, so keeping it registered
+        // with an empty stack would break normal paste everywhere whenever the
+        // simulated fallback can't run (e.g. accessibility permission missing).
+        itemsCancellable = ClipboardStorage.shared.$items
+            .map { !$0.isEmpty }
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] hasItems in
+                if hasItems {
+                    self?.registerPasteHotkey()
+                } else {
+                    self?.unregisterPasteHotkey()
+                }
+            }
+    }
+
+    private func installEventHandlerIfNeeded() {
+        guard eventHandler == nil else { return }
+
         var eventType = EventTypeSpec()
         eventType.eventClass = OSType(kEventClassKeyboard)
         eventType.eventKind = OSType(kEventHotKeyPressed)
@@ -85,24 +127,11 @@ class HotkeyManager {
 
             return noErr
         }, 1, &eventType, nil, &eventHandler)
+    }
 
-        // Register Cmd+Shift+C hotkey (copy and show stack)
-        let copyResult = RegisterEventHotKey(
-            currentKeyCode,
-            currentModifiers,
-            copyHotKeyID,
-            GetApplicationEventTarget(),
-            0,
-            &copyHotKeyRef
-        )
+    private func registerPasteHotkey() {
+        guard pasteHotKeyRef == nil else { return }
 
-        if copyResult == noErr {
-            print("HotkeyManager: Successfully registered copy hotkey - keyCode: \(currentKeyCode), modifiers: \(currentModifiers)")
-        } else {
-            print("HotkeyManager: Failed to register copy hotkey - error code: \(copyResult)")
-        }
-
-        // Register Cmd+V hotkey (paste from stack)
         // V key = 0x09, Cmd = cmdKey (0x0100)
         let pasteResult = RegisterEventHotKey(
             0x09,  // V key
@@ -114,10 +143,17 @@ class HotkeyManager {
         )
 
         if pasteResult == noErr {
-            print("HotkeyManager: Successfully registered Cmd+V paste hotkey")
+            print("HotkeyManager: Registered Cmd+V paste hotkey (stack has items)")
         } else {
             print("HotkeyManager: Failed to register Cmd+V paste hotkey - error code: \(pasteResult)")
         }
+    }
+
+    private func unregisterPasteHotkey() {
+        guard let pasteRef = pasteHotKeyRef else { return }
+        UnregisterEventHotKey(pasteRef)
+        pasteHotKeyRef = nil
+        print("HotkeyManager: Unregistered Cmd+V paste hotkey (stack is empty)")
     }
     
     // Handle the hotkey press - toggle stack window visibility
@@ -133,6 +169,11 @@ class HotkeyManager {
 
             // Start monitoring BEFORE simulating Cmd+C so we can detect the clipboard change
             MonitoringManager.shared.startMonitoring()
+
+            // Prompt for accessibility on first use. Without it the simulated
+            // Cmd+C does nothing, but the window still opens and manual copies
+            // are captured.
+            ensureAccessibilityPermission()
 
             // Simulate Cmd+C to copy the currently selected content
             triggerCopyOperation()
@@ -158,7 +199,9 @@ class HotkeyManager {
 
         let storage = ClipboardStorage.shared
 
-        // If stack is empty, simulate normal Cmd+V
+        // If stack is empty, simulate normal Cmd+V. (Normally unreachable now
+        // that the hotkey is unregistered when the stack empties, but kept as a
+        // fallback for the brief window between removal and unregistration.)
         guard !storage.items.isEmpty else {
             print("HotkeyManager: Stack is empty, simulating normal paste")
             isPasting = true
@@ -169,16 +212,26 @@ class HotkeyManager {
             return
         }
 
+        // Without accessibility permission the simulated paste silently does
+        // nothing - bail out BEFORE touching the stack so no item is consumed,
+        // and prompt the user to grant permission.
+        guard ensureAccessibilityPermission() else {
+            print("HotkeyManager: ERROR - Cannot paste from stack without accessibility permission!")
+            return
+        }
+
         print("HotkeyManager: Pasting from stack (\(storage.items.count) items)")
 
         // The current item is already in the clipboard (loaded when window was shown or after previous paste)
-        // So we just need to simulate Cmd+V, then advance to the next item
+        // So we just need to simulate Cmd+V, then advance to the next item.
+        // isPasting stays set until the advance fully completes (item removed
+        // AND next item loaded to the clipboard) so a rapid second Cmd+V can't
+        // re-paste the already-consumed item.
         isPasting = true
         simulateNormalPaste()
 
         // After paste completes, handle stack operation
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            self.isPasting = false
             self.handleStackPasteOperation()
         }
     }
@@ -188,6 +241,7 @@ class HotkeyManager {
         let storage = ClipboardStorage.shared
 
         guard !storage.items.isEmpty else {
+            isPasting = false
             return
         }
 
@@ -202,13 +256,20 @@ class HotkeyManager {
         // Load next item to clipboard after a short delay
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             if let nextItem = storage.nextInSequence {
-                // Tell clipboard monitor to ignore the next clipboard change
-                Paste_AppApp.monitor.ignoreNextClipboardChange()
-
-                // Load next item to clipboard
+                // Load next item to clipboard (marks the change as internal
+                // so the monitor doesn't re-capture it)
                 storage.loadItemToClipboard(nextItem)
             }
+            self.isPasting = false
         }
+    }
+
+    // Returns whether the app has accessibility permission, prompting the user
+    // to grant it (via the system dialog) when missing.
+    @discardableResult
+    private func ensureAccessibilityPermission() -> Bool {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        return AXIsProcessTrustedWithOptions(options)
     }
 
     // Post Cmd + <key> through the session event tap (used to simulate copy/paste)
@@ -242,15 +303,15 @@ class HotkeyManager {
     }
 
     func unregisterHotkeys() {
+        itemsCancellable?.cancel()
+        itemsCancellable = nil
+
         if let copyRef = copyHotKeyRef {
             UnregisterEventHotKey(copyRef)
             self.copyHotKeyRef = nil
         }
 
-        if let pasteRef = pasteHotKeyRef {
-            UnregisterEventHotKey(pasteRef)
-            self.pasteHotKeyRef = nil
-        }
+        unregisterPasteHotkey()
 
         if let eventHandler = eventHandler {
             RemoveEventHandler(eventHandler)

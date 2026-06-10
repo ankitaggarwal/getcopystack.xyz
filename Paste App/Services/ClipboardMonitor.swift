@@ -19,7 +19,7 @@ class ClipboardMonitor {
     private var lastChangeCount: Int
     private var lastClipboardContent: String?
     private let storage: ClipboardStorage
-    private var ignoreNextChange = false
+    private var ignoredChangeCount: Int?
     private var isMonitoring = false
 
     // Public property to check monitoring state
@@ -70,9 +70,13 @@ class ClipboardMonitor {
         timer = nil
     }
     
-    // Used when manually copying items through the UI
-    func ignoreNextClipboardChange() {
-        ignoreNextChange = true
+    // Marks an app-internal pasteboard write so the monitor doesn't re-capture it.
+    // Pass the pasteboard's changeCount taken right after the write: if the user
+    // copies something before the next poll tick, the counts won't match and the
+    // user's copy is still captured (a plain "skip one change" flag would
+    // swallow it).
+    func ignoreChange(withCount count: Int) {
+        ignoredChangeCount = count
     }
 
     // Check if content is truly new (not seen recently)
@@ -280,8 +284,9 @@ class ClipboardMonitor {
             }
         }
 
-        // Fallback: try to parse string as URL
-        if let urlString = pasteboard.string(forType: .string),
+        // Fallback: try to parse string as URL (trimmed - URLs copied from
+        // address bars often carry a trailing newline that breaks URL parsing)
+        if let urlString = pasteboard.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines),
            !urlString.isEmpty,
            let url = URL(string: urlString),
            (url.scheme == "http" || url.scheme == "https") {
@@ -301,8 +306,8 @@ class ClipboardMonitor {
         lastChangeCount = currentChangeCount
 
         // Skip if this change came from us loading an item back onto the clipboard
-        if ignoreNextChange {
-            ignoreNextChange = false
+        if currentChangeCount == ignoredChangeCount {
+            ignoredChangeCount = nil
             lastClipboardContent = pasteboard.string(forType: .string)
             return
         }
@@ -360,7 +365,9 @@ class ClipboardMonitor {
         }
 
         if let image = detectImageFromPasteboard(pasteboard) {
-            let hash = image.tiffRepresentation?.base64EncodedString() ?? "unknown_image_\(UUID().uuidString)"
+            // Hash the raw bytes instead of keying on a base64 string, which for a
+            // large screenshot would allocate tens of MB just for deduplication
+            let hash = image.tiffRepresentation.map { "image_\($0.hashValue)" } ?? "unknown_image_\(UUID().uuidString)"
             if shouldAddContent(hash: hash) {
                 lastClipboardContent = nil
                 storage.addItem(ClipboardItem(image: image))
@@ -388,7 +395,7 @@ class ClipboardMonitor {
         }
 
         if let text = pasteboard.string(forType: .string), !text.isEmpty {
-            if shouldAddContent(hash: text) {
+            if shouldAddContent(hash: "text_\(text.hashValue)") {
                 lastClipboardContent = text
                 storage.addItem(ClipboardItem(text: text))
                 print("ClipboardMonitor: Added text to storage\(suffix): \(text.prefix(50))...")

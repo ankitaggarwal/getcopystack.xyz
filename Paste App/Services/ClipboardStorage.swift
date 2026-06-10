@@ -117,9 +117,11 @@ class ClipboardStorage: ObservableObject {
     
     // Remove an item at specific index from the stack
     func removeItem(at index: Int) {
-        guard index < items.count else { return }
-
         DispatchQueue.main.async {
+            // Validate inside the async block - other queued mutations may have
+            // shrunk the array by the time this runs
+            guard index >= 0 && index < self.items.count else { return }
+
             self.objectWillChange.send()
 
             self.items.remove(at: index)
@@ -151,11 +153,13 @@ class ClipboardStorage: ObservableObject {
 
     // Load a specific item to the clipboard (public for use by HotkeyManager)
     func loadItemToClipboard(_ item: ClipboardItem) {
-        // Tell the clipboard monitor to ignore this change
-        Paste_AppApp.monitor.ignoreNextClipboardChange()
-
         // Copy to clipboard using shared helper
-        ClipboardHelper.writeItemToPasteboard(item, pasteboard: NSPasteboard.general)
+        let pasteboard = NSPasteboard.general
+        ClipboardHelper.writeItemToPasteboard(item, pasteboard: pasteboard)
+
+        // Tell the clipboard monitor this exact change is ours, so it isn't
+        // re-captured (but a user copy racing in right after still is)
+        Paste_AppApp.monitor.ignoreChange(withCount: pasteboard.changeCount)
     }
 
     // MARK: - Video File Cleanup

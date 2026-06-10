@@ -40,9 +40,10 @@ an image, a video (URL + thumbnail + raw pasteboard data), a file, or a web URL.
    the current selection, and shows the floating stack window after a short delay.
 3. **Monitor.** While the window is open, `ClipboardMonitor` polls the pasteboard every
    50 ms and adds anything new to the stack.
-4. **Paste.** `Cmd+V` is intercepted globally. If the stack is empty it passes through as
-   a normal paste; otherwise it pastes the next item, removes it, and loads the following
-   item onto the clipboard.
+4. **Paste.** While the stack has items, `Cmd+V` is intercepted globally: it pastes the
+   next item, removes it, and loads the following item onto the clipboard. The hotkey is
+   registered only while items exist — with an empty stack, `Cmd+V` is the untouched
+   system paste, so the app can never break pasting elsewhere.
 5. **Close.** Hiding the window stops monitoring and clears the stack.
 
 Monitoring is deliberately **not** continuous — it only runs while the stack window is
@@ -61,7 +62,9 @@ The ordering matters:
 - **Video before image.** Video files on the pasteboard often carry thumbnail/preview
   data that would otherwise be misread as an image. Videos are detected first and their
   *entire* raw pasteboard payload is captured, so they can be re-pasted byte-for-byte into
-  apps (WhatsApp, Slack) that expect specific metadata.
+  apps (WhatsApp, Slack) that expect specific metadata. Videos copied from temporary
+  locations are stashed in Application Support; leftovers are swept on the next launch
+  (the stack always starts empty, so nothing there can still be referenced).
 - **Image** detection tries several fallbacks (direct `NSImage`, image file URLs,
   TIFF/PNG/HEIC data, generic image types) because different source apps expose images
   differently.
@@ -91,16 +94,19 @@ The stack is capped at 50 items.
 ## Avoiding feedback loops
 
 When CopyStack loads an item back onto the clipboard (to set up the next paste), that
-write would itself look like a new copy and get re-captured. To prevent this,
-`ClipboardMonitor.ignoreNextClipboardChange()` is called before every internal pasteboard
-write, so the monitor skips exactly one change.
+write would itself look like a new copy and get re-captured. To prevent this, every
+internal pasteboard write records the resulting `changeCount` via
+`ClipboardMonitor.ignoreChange(withCount:)`, and the monitor skips that exact change.
+Matching on the change count (rather than a "skip the next change" flag) means a user
+copy that races in right after an internal write is still captured.
 
 ## Permissions
 
 The only required permission is **Accessibility**, needed to simulate `Cmd+C` and
-`Cmd+V` via `CGEvent`. It's checked inline at the point of use (`AXIsProcessTrusted()`);
-if it's missing, the paste is skipped. The global hotkeys themselves use the Carbon API
-and need no extra permission.
+`Cmd+V` via `CGEvent`. It's checked inline at the point of use
+(`AXIsProcessTrustedWithOptions`, which also shows the system grant prompt); if it's
+missing, the paste is skipped *before* any stack item is consumed. The global hotkeys
+themselves use the Carbon API and need no extra permission.
 
 ## Updates
 

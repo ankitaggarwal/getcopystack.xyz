@@ -30,6 +30,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Don't start monitoring automatically - only when stack window is shown
         print("AppDelegate: Monitoring will start when stack window is activated")
 
+        // The stack always starts empty, so any video file left in our storage
+        // directory from a previous run is orphaned - delete them to keep the
+        // Application Support folder from growing forever.
+        cleanupOrphanedVideoFiles()
+
         // Check GitHub for a newer release on launch, then every 24 hours.
         UpdateChecker.check()
         updateTimer = Timer.scheduledTimer(withTimeInterval: 24 * 60 * 60, repeats: true) { _ in
@@ -45,6 +50,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         HotkeyManager.shared.unregisterHotkeys()
 
         updateTimer?.invalidate()
+    }
+
+    private func cleanupOrphanedVideoFiles() {
+        DispatchQueue.global(qos: .utility).async {
+            guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+                return
+            }
+            let videosDir = appSupport.appendingPathComponent("PasteApp/Videos", isDirectory: true)
+            guard let files = try? FileManager.default.contentsOfDirectory(at: videosDir, includingPropertiesForKeys: nil) else {
+                return
+            }
+            for file in files {
+                try? FileManager.default.removeItem(at: file)
+            }
+            if !files.isEmpty {
+                print("AppDelegate: Cleaned up \(files.count) orphaned video file(s)")
+            }
+        }
     }
 
 }
