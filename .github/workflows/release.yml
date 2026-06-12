@@ -1,21 +1,24 @@
 name: Release
 
-# Build, sign, and publish a DMG whenever a version tag (e.g. v1.0.0) is pushed:
-#   git tag v1.0.0 && git push origin v1.0.0
+# Manual fallback: build, sign (self-signed), and publish a DMG.
 #
-# Requires two repository secrets (Settings ▸ Secrets and variables ▸ Actions):
-#   SIGNING_CERTIFICATE_P12_BASE64  — base64 of the exported "CopyStack Self-Signed"
+# Releases are normally built, Developer ID-signed, and notarized locally with
+# ./build-release.sh and published via `gh release create` - notarization
+# credentials stay on the release machine, so this workflow no longer runs on
+# tag push (it would overwrite the notarized asset with a self-signed one).
+# It is kept as a manually-triggered fallback.
+#
+# Requires two repository secrets (Settings > Secrets and variables > Actions):
+#   SIGNING_CERTIFICATE_P12_BASE64  - base64 of the exported "CopyStack Self-Signed"
 #                                     certificate *with its private key* (.p12)
-#   SIGNING_CERTIFICATE_PASSWORD    — the password set when exporting that .p12
-#
-# Note: this signs with a self-signed certificate (stable identity across updates,
-# so users keep their Accessibility permission). It is NOT Apple-notarized, so the
-# first launch still needs a one-time right-click ▸ Open.
+#   SIGNING_CERTIFICATE_PASSWORD    - the password set when exporting that .p12
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and release (e.g. v1.1.0)"
+        required: true
 
 permissions:
   contents: write   # needed to create the GitHub Release
@@ -29,6 +32,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
 
       - name: Import signing certificate into a temporary keychain
         env:
@@ -59,10 +64,11 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: CopyStack ${{ github.ref_name }}
+          tag_name: ${{ inputs.tag }}
+          name: CopyStack ${{ inputs.tag }}
           files: ${{ runner.temp }}/CopyStack.dmg
           body: |
-            CopyStack ${{ github.ref_name }}
+            CopyStack ${{ inputs.tag }}
 
             **Install:** download `CopyStack.dmg`, open it, and drag CopyStack into
             Applications. On first launch, right-click the app ▸ **Open** (it is signed

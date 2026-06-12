@@ -1,29 +1,34 @@
 #!/bin/bash
 #
-# build-release.sh — builds CopyStack, signs it with a self-signed certificate,
-# and packages a distributable DMG on the Desktop.
+# build-release.sh - builds CopyStack, signs it, and packages a distributable
+# DMG on the Desktop.
 #
-# CopyStack uses keyboard simulation, so macOS requires the app to have a stable
-# code-signing identity for its Accessibility permission to survive updates.
-# Signing every build with the SAME self-signed certificate keeps that identity
-# stable across rebuilds and machines.
+# Signing is auto-detected:
+#   - If a "Developer ID Application" identity is in the Keychain, the app is
+#     signed with it (hardened runtime + timestamp) and the DMG is notarized
+#     and stapled via a notarytool keychain profile (override the profile name
+#     with NOTARY_PROFILE; set it up once with
+#     `xcrun notarytool store-credentials <profile> --apple-id ... --team-id ...`).
+#     Result: users get a normal Gatekeeper-verified first launch.
+#   - Otherwise it falls back to a self-signed certificate (create one in
+#     Keychain Access > Certificate Assistant, type "Code Signing", and set
+#     SIGN_IDENTITY to its name). Self-signed builds need a one-time
+#     right-click > Open on other Macs.
 #
-# One-time setup:
-#   1. Create a self-signed code-signing certificate in Keychain Access
-#      (Keychain Access ▸ Certificate Assistant ▸ Create a Certificate…,
-#       type "Code Signing"). Name it whatever you like.
-#   2. Set SIGN_IDENTITY below (or export it) to that certificate's name.
+# Either way, sign every release with the SAME identity: CopyStack uses
+# keyboard simulation, and macOS ties its Accessibility permission to the
+# signing identity - changing it makes users re-grant the permission.
 #
-# Then run:  ./build-release.sh
-#
-# (First launch of a self-signed app still needs a one-time right-click ▸ Open;
-#  only Apple notarization removes that, which requires a paid Developer account.)
+# Run:  ./build-release.sh
 
 set -euo pipefail
 
-# Name of the self-signed code-signing certificate in your Keychain.
-# Override at runtime with:  SIGN_IDENTITY="My Cert" ./build-release.sh
-SIGN_IDENTITY="${SIGN_IDENTITY:-CopyStack Self-Signed}"
+# Signing identity: explicit SIGN_IDENTITY wins; else the first Developer ID
+# Application identity in the Keychain; else the self-signed certificate name.
+DEV_ID="$(security find-identity -v -p codesigning 2>/dev/null \
+  | awk -F'"' '/Developer ID Application/ {print $2; exit}')"
+SIGN_IDENTITY="${SIGN_IDENTITY:-${DEV_ID:-CopyStack Self-Signed}}"
+NOTARY_PROFILE="${NOTARY_PROFILE:-lilcleo}"
 PROJECT="Copy Stack.xcodeproj"
 SCHEME="Copy Stack"
 APP_NAME="Copy Stack.app"
@@ -49,9 +54,14 @@ xcodebuild -project "$PROJECT" -scheme "$SCHEME" -configuration Release \
 
 APP="$DERIVED/Build/Products/Release/$APP_NAME"
 
-# 2. Re-sign with the self-signed certificate (stable identity for Accessibility).
+# 2. Re-sign with the release certificate (stable identity for Accessibility).
 echo "==> Signing with '$SIGN_IDENTITY'..."
-codesign --force --deep --options runtime --sign "$SIGN_IDENTITY" "$APP"
+case "$SIGN_IDENTITY" in
+  "Developer ID Application"*)
+    codesign --force --deep --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP" ;;
+  *)
+    codesign --force --deep --options runtime --sign "$SIGN_IDENTITY" "$APP" ;;
+esac
 codesign --verify --verbose "$APP"
 
 # 3. Package the DMG (drag-to-Applications layout).
@@ -62,6 +72,21 @@ ln -s /Applications "$STAGE/Applications"
 rm -f "$DMG_OUT"
 hdiutil create -volname "CopyStack" -srcfolder "$STAGE" -ov -format UDZO "$DMG_OUT" >/dev/null
 rm -rf "$STAGE"
+
+# 4. Notarize + staple when signed with a Developer ID identity.
+case "$SIGN_IDENTITY" in
+  "Developer ID Application"*)
+    codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG_OUT"
+    if xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
+      echo "==> Notarizing (takes a few minutes)..."
+      xcrun notarytool submit "$DMG_OUT" --keychain-profile "$NOTARY_PROFILE" --wait
+      xcrun stapler staple "$DMG_OUT"
+    else
+      echo "WARNING: notarytool profile '$NOTARY_PROFILE' not found - DMG is signed but NOT notarized."
+      echo "  Set it up once: xcrun notarytool store-credentials $NOTARY_PROFILE --apple-id <email> --team-id <team>"
+    fi
+    ;;
+esac
 
 VERSION="$(plutil -extract CFBundleShortVersionString raw "$APP/Contents/Info.plist")"
 echo "==> Done. CopyStack $VERSION -> $DMG_OUT"
