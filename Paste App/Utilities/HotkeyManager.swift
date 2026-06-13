@@ -264,12 +264,107 @@ class HotkeyManager {
         }
     }
 
-    // Returns whether the app has accessibility permission, prompting the user
-    // to grant it (via the system dialog) when missing.
+    // MARK: - Accessibility permission
+
+    // Set once the system grant prompt has been shown, so later failures are
+    // treated as "granted but not taking effect" and get the recovery alert
+    // instead of a system prompt macOS may silently ignore.
+    private let axPromptShownKey = "AXPromptShown"
+    private var didShowRecoveryAlertThisSession = false
+
+    // Returns whether the app has accessibility permission. The first failure
+    // shows the system grant dialog; failures after that show a recovery alert,
+    // because at that point either the user skipped the grant or macOS kept a
+    // stale TCC entry from a build with a different code signature - the
+    // checkbox in System Settings looks enabled but the permission is silently
+    // denied, and only deleting the entry (tccutil reset) fixes it.
     @discardableResult
     private func ensureAccessibilityPermission() -> Bool {
+        if AXIsProcessTrusted() {
+            return true
+        }
+
+        let defaults = UserDefaults.standard
+        if !defaults.bool(forKey: axPromptShownKey) {
+            defaults.set(true, forKey: axPromptShownKey)
+            return promptForAccessibility()
+        }
+
+        showAccessibilityRecoveryAlert()
+        return false
+    }
+
+    @discardableResult
+    private func promptForAccessibility() -> Bool {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         return AXIsProcessTrustedWithOptions(options)
+    }
+
+    private func showAccessibilityRecoveryAlert() {
+        guard !didShowRecoveryAlertThisSession else { return }
+        didShowRecoveryAlertThisSession = true
+
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Copy Stack needs Accessibility permission"
+            alert.informativeText = """
+            Copy Stack simulates Cmd+C and Cmd+V keystrokes, which macOS only allows \
+            with Accessibility permission.
+
+            If you already enabled Copy Stack in System Settings and it still doesn't \
+            work, macOS kept a stale permission entry from a previous version of the \
+            app. Click "Reset Permission" to clear it, then grant the permission again \
+            when the system dialog reappears.
+            """
+            alert.addButton(withTitle: "Reset Permission")
+            alert.addButton(withTitle: "Open System Settings")
+            alert.addButton(withTitle: "Cancel")
+            NSApp.activate(ignoringOtherApps: true)
+            switch alert.runModal() {
+            case .alertFirstButtonReturn:
+                self.resetAccessibilityPermission()
+            case .alertSecondButtonReturn:
+                self.openAccessibilitySettings()
+            default:
+                break
+            }
+        }
+    }
+
+    // Delete our TCC Accessibility entry and re-show the system grant dialog.
+    // The fresh entry is bound to this build's signature, so the grant sticks.
+    private func resetAccessibilityPermission() {
+        guard let bundleID = Bundle.main.bundleIdentifier else {
+            openAccessibilitySettings()
+            return
+        }
+        let reset = Process()
+        reset.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+        reset.arguments = ["reset", "Accessibility", bundleID]
+        do {
+            try reset.run()
+            reset.waitUntilExit()
+        } catch {
+            openAccessibilitySettings()
+            return
+        }
+
+        if reset.terminationStatus == 0 {
+            print("HotkeyManager: Reset stale Accessibility entry for \(bundleID)")
+            // Allow the recovery alert again in case the user dismisses this
+            // fresh prompt without granting.
+            didShowRecoveryAlertThisSession = false
+            promptForAccessibility()
+        } else {
+            print("HotkeyManager: tccutil reset failed (status \(reset.terminationStatus))")
+            openAccessibilitySettings()
+        }
+    }
+
+    private func openAccessibilitySettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     // Post Cmd + <key> through the session event tap (used to simulate copy/paste)

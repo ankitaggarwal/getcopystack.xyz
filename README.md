@@ -54,17 +54,28 @@ apps like WhatsApp and Slack.
 
 1. Download `CopyStack.dmg` from the [Releases](https://github.com/ankitaggarwal/getcopystack.xyz/releases) page.
 2. Open the DMG and drag **CopyStack** into your **Applications** folder.
-3. **First launch:** the app is signed with a self-signed certificate (not notarized
-   by Apple), so macOS will block it the first time with a *"cannot be opened"* /
-   *"unidentified developer"* warning. To get past it **once**:
-   - **Right-click** (or Control-click) CopyStack in Applications → **Open** → **Open**, or
-   - go to **System Settings ▸ Privacy & Security**, scroll down, and click **Open Anyway**.
+3. Launch CopyStack and grant **Accessibility permission** when prompted
+   (System Settings ▸ Privacy & Security ▸ Accessibility) — required so CopyStack
+   can simulate `Cmd+C` / `Cmd+V`.
 
-   After that first time, it opens normally like any other app.
-4. Grant **Accessibility permission** when prompted (System Settings ▸ Privacy &
-   Security ▸ Accessibility) — required so CopyStack can simulate `Cmd+C` / `Cmd+V`.
+Releases are Developer ID-signed and notarized by Apple, so they open normally on
+first launch.
 
-> Prefer not to trust a self-signed build? Build it yourself from source instead — see below.
+### Troubleshooting: the Accessibility prompt keeps coming back
+
+If CopyStack is enabled in System Settings ▸ Privacy & Security ▸ Accessibility but
+still asks for the permission, macOS kept a stale permission entry from a previous
+version of the app (the entry is tied to the old build's code signature, so the
+checkbox has no effect). CopyStack detects this and offers a **Reset Permission**
+button that fixes it in place. To do it manually instead:
+
+```sh
+tccutil reset Accessibility com.copystack.app
+```
+
+then relaunch CopyStack and grant the permission when the system dialog reappears.
+Old entries named "CopyStack" from earlier versions can be removed in System
+Settings with the **−** button.
 
 ## Build & run
 
