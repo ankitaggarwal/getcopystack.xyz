@@ -186,23 +186,26 @@ class HotkeyManager {
         }
     }
 
-    // Flag to prevent re-entrant handling of Cmd+V
+    // True while a stack paste is mid-flight: from simulating Cmd+V until the
+    // pasted item has been removed AND the next item loaded to the clipboard.
     private var isPasting = false
+
+    // Cmd+V presses that arrived while a paste was in flight. Each advance
+    // replays one queued press when it finishes, so presses at human speed are
+    // never silently dropped (the global hotkey consumes the keystroke, so a
+    // dropped press would paste nothing and consume no stack item).
+    private var pendingPasteRequests = 0
 
     // Handle Cmd+V paste from stack
     func handlePasteFromStack() {
-        // Prevent re-entrant calls (from our own simulated Cmd+V)
-        guard !isPasting else {
-            print("HotkeyManager: Ignoring re-entrant Cmd+V")
-            return
-        }
-
         let storage = ClipboardStorage.shared
 
         // If stack is empty, simulate normal Cmd+V. (Normally unreachable now
         // that the hotkey is unregistered when the stack empties, but kept as a
         // fallback for the brief window between removal and unregistration.)
         guard !storage.items.isEmpty else {
+            // Don't pass a native paste through in the middle of a stack cycle.
+            guard !isPasting else { return }
             print("HotkeyManager: Stack is empty, simulating normal paste")
             isPasting = true
             simulateNormalPaste()
@@ -220,17 +223,37 @@ class HotkeyManager {
             return
         }
 
+        // A paste cycle is already running: queue this press and replay it once
+        // the cycle finishes, rather than dropping it. The synthetic Cmd+V we
+        // post does not re-enter this handler, so anything reaching here is a
+        // genuine user press.
+        if isPasting {
+            pendingPasteRequests += 1
+            print("HotkeyManager: Queued Cmd+V during in-flight paste (pending: \(pendingPasteRequests))")
+            return
+        }
+
+        performStackPaste()
+    }
+
+    // Simulate one Cmd+V for the current clipboard item, then advance the stack.
+    private func performStackPaste() {
+        let storage = ClipboardStorage.shared
+
+        guard !storage.items.isEmpty else {
+            isPasting = false
+            pendingPasteRequests = 0
+            return
+        }
+
         print("HotkeyManager: Pasting from stack (\(storage.items.count) items)")
 
-        // The current item is already in the clipboard (loaded when window was shown or after previous paste)
-        // So we just need to simulate Cmd+V, then advance to the next item.
-        // isPasting stays set until the advance fully completes (item removed
-        // AND next item loaded to the clipboard) so a rapid second Cmd+V can't
-        // re-paste the already-consumed item.
+        // The current item is already in the clipboard (loaded when window was
+        // shown or after the previous paste). Simulate Cmd+V, then advance.
         isPasting = true
         simulateNormalPaste()
 
-        // After paste completes, handle stack operation
+        // After the paste lands, handle the stack operation.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             self.handleStackPasteOperation()
         }
@@ -242,6 +265,7 @@ class HotkeyManager {
 
         guard !storage.items.isEmpty else {
             isPasting = false
+            pendingPasteRequests = 0
             return
         }
 
@@ -253,14 +277,23 @@ class HotkeyManager {
             NSSound(named: "Tink")?.play()
         }
 
-        // Load next item to clipboard after a short delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+        // Load next item to clipboard after a short delay, then clear the
+        // in-flight flag and replay one queued press if the user pressed Cmd+V
+        // again while this cycle was running.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             if let nextItem = storage.nextInSequence {
                 // Load next item to clipboard (marks the change as internal
                 // so the monitor doesn't re-capture it)
                 storage.loadItemToClipboard(nextItem)
             }
             self.isPasting = false
+
+            if self.pendingPasteRequests > 0 && !storage.items.isEmpty {
+                self.pendingPasteRequests -= 1
+                self.performStackPaste()
+            } else {
+                self.pendingPasteRequests = 0
+            }
         }
     }
 
