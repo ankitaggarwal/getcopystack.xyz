@@ -4,34 +4,50 @@
 //
 //  Owns the floating stack window: builds it once, positions it near the menu
 //  bar icon, and shows/hides it. Showing starts clipboard monitoring; hiding
-//  stops it, so polling only runs while the stack is on screen.
+//  stops it, so polling only runs while the stack is on screen. The window's
+//  height tracks the number of items (up to a cap), growing as you copy and
+//  shrinking as you paste.
 //
 //  Created by Ankit Aggarwal
 //
 
 import SwiftUI
 import AppKit
+import Combine
 
 class WindowManager: NSObject {
     static let shared = WindowManager()
     private var window: NSWindow?
-    private weak var stackDirectionButton: NSButton?
+    private var itemsCancellable: AnyCancellable?
 
     // Notification for window visibility changes
     static let windowVisibilityChangedNotification = NSNotification.Name("WindowVisibilityChanged")
+
+    // Layout metrics used to size the window to fit its contents.
+    private enum Metrics {
+        static let titlebar: CGFloat = 28   // transparent titlebar (holds the close button)
+        static let header: CGFloat = 41     // count + paste-order toggle + clear, plus its divider
+        static let listPadding: CGFloat = 12
+        static let row: CGFloat = 42
+        static let maxRows = 5              // beyond this the list scrolls
+        static let emptyBody: CGFloat = 188
+        static let width: CGFloat = 330
+    }
 
     private override init() {
         super.init()
         // Initialize the window during construction
         createWindow()
 
-        // Listen for stack direction changes
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleStackDirectionChanged),
-            name: NSNotification.Name("StackDirectionChanged"),
-            object: nil
-        )
+        // Grow/shrink the window as items are added and pasted. This only
+        // resizes the window — item ordering and paste logic are untouched.
+        itemsCancellable = ClipboardStorage.shared.$items
+            .map { $0.count }
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateWindowHeight(animated: true)
+            }
     }
 
     private func notifyVisibilityChanged() {
@@ -41,7 +57,7 @@ class WindowManager: NSObject {
             userInfo: ["isVisible": isStackWindowActive()]
         )
     }
-    
+
     func showWindow() {
         // Ensure monitoring is started when window is shown (safe to call multiple times)
         MonitoringManager.shared.startMonitoring()
@@ -50,7 +66,8 @@ class WindowManager: NSObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
             guard let self = self else { return }
 
-            // Position the window near the menu bar icon
+            // Size to current contents first, then anchor it near the menu bar.
+            self.updateWindowHeight(animated: false)
             self.positionWindowBelowMenuBar()
 
             // Show the window without stealing focus from source app
@@ -60,7 +77,7 @@ class WindowManager: NSObject {
             self.notifyVisibilityChanged()
         }
     }
-    
+
     func hideWindow() {
         // Stop clipboard and keyboard monitoring when window is hidden
         MonitoringManager.shared.stopMonitoring()
@@ -70,7 +87,7 @@ class WindowManager: NSObject {
         // Notify observers of visibility change
         notifyVisibilityChanged()
     }
-    
+
     func toggleWindow() {
         if window?.isVisible == true {
             hideWindow()
@@ -78,7 +95,7 @@ class WindowManager: NSObject {
             showWindow()
         }
     }
-    
+
     func isStackWindowActive() -> Bool {
         return window?.isVisible == true
     }
@@ -94,18 +111,13 @@ class WindowManager: NSObject {
                 }
             )
         )
-        
-        // Create the toolbar
-        let toolbar = NSToolbar(identifier: "MainToolbar")
-        toolbar.delegate = self
-        toolbar.displayMode = .iconOnly
-        toolbar.showsBaselineSeparator = false
-        
+
         // Calculate content size
-        let contentRect = NSRect(x: 0, y: 0, width: 300, height: 320)
-        
-        // Create a standard window with a title bar
-        let styleMask: NSWindow.StyleMask = [.titled, .closable, .resizable]
+        let contentRect = NSRect(x: 0, y: 0, width: Metrics.width, height: 320)
+
+        // A titled window with a transparent titlebar so the SwiftUI header
+        // reads as one continuous surface with it (no toolbar / "second bar").
+        let styleMask: NSWindow.StyleMask = [.titled, .closable]
         let window = NSWindow(
             contentRect: contentRect,
             styleMask: styleMask,
@@ -124,33 +136,54 @@ class WindowManager: NSObject {
         window.titleVisibility = .hidden
         window.isReleasedWhenClosed = false
         window.level = .floating
-        window.toolbar = toolbar
 
         // Make window appear on all spaces/screens
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .fullScreenNone]
-        
-        // Set minimum size (wider to ensure toolbar button is always visible)
-        window.minSize = NSSize(width: 240, height: 160)
-        
+
         // Visual effects
         window.isOpaque = false
         window.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.98)
-        
+
         // Prevent window from tabbing
         window.tabbingMode = .disallowed
-        
+
         // Set delegate to handle window events
         window.delegate = self
-        
+
         self.window = window
-        
+
         // Hide window initially
         window.orderOut(nil)
-        
+
         print("Window created and initialized")
     }
-    
-    
+
+    // MARK: - Content-driven height
+
+    private func targetHeight(for count: Int) -> CGFloat {
+        if count == 0 {
+            return Metrics.titlebar + Metrics.emptyBody
+        }
+        let rows = CGFloat(min(count, Metrics.maxRows))
+        return Metrics.titlebar + Metrics.header + Metrics.listPadding + rows * Metrics.row
+    }
+
+    /// Resize the window to fit the current item count, keeping the top edge
+    /// anchored so it grows downward from just below the menu bar.
+    private func updateWindowHeight(animated: Bool) {
+        guard let window = window else { return }
+        let newHeight = targetHeight(for: ClipboardStorage.shared.items.count)
+
+        var frame = window.frame
+        guard abs(frame.height - newHeight) > 0.5 else { return }
+
+        let top = frame.maxY  // keep the top fixed
+        frame.size.height = newHeight
+        frame.size.width = Metrics.width
+        frame.origin.y = top - newHeight
+        window.setFrame(frame, display: true, animate: animated)
+    }
+
     private func positionWindowBelowMenuBar() {
         guard let window = self.window else { return }
         guard let screenFrame = NSScreen.main?.visibleFrame else { return }
@@ -164,31 +197,6 @@ class WindowManager: NSObject {
         let yPosition = screenFrame.maxY - windowFrame.height - menuBarHeight - 10 // 10px buffer from menu bar
 
         window.setFrameOrigin(NSPoint(x: xPosition, y: yPosition))
-    }
-
-    // MARK: - Paste Order Toggle
-
-    private func createStackDirectionIcon(growsFromTop: Bool) -> NSImage {
-        // Use arrows to indicate temporal paste direction
-        // ↓ = Going backward in time (newest first - LIFO)
-        // ↑ = Going forward in time (oldest first - FIFO)
-        let symbolName = growsFromTop ? "arrow.down.circle" : "arrow.up.circle"
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-        return NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)!
-            .withSymbolConfiguration(config)!
-    }
-
-    private func updateTooltip(growsFromTop: Bool) {
-        // Dynamic tooltip showing current mode and what clicking will do
-        stackDirectionButton?.toolTip = growsFromTop ?
-            "Paste newest first • Click to paste oldest first" :
-            "Paste oldest first • Click to paste newest first"
-    }
-
-    @objc private func handleStackDirectionChanged() {
-        let growsFromTop = GeneralPreferences.shared.stackGrowsFromTop
-        stackDirectionButton?.image = createStackDirectionIcon(growsFromTop: growsFromTop)
-        updateTooltip(growsFromTop: growsFromTop)
     }
 }
 
@@ -209,60 +217,9 @@ extension WindowManager: NSWindowDelegate {
             notifyVisibilityChanged()
         }
     }
-    
+
     func windowDidResignKey(_ notification: Notification) {
         // Window lost focus, but we want to keep monitoring as long as window is visible
         // Do nothing here - keep monitoring active
-    }
-}
-
-// MARK: - NSToolbarDelegate
-extension WindowManager: NSToolbarDelegate {
-    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
-        switch itemIdentifier {
-        case NSToolbarItem.Identifier("stackDirection"):
-            let toolbarItem = NSToolbarItem(itemIdentifier: itemIdentifier)
-            let button = NSButton()
-            button.image = createStackDirectionIcon(growsFromTop: GeneralPreferences.shared.stackGrowsFromTop)
-            button.bezelStyle = .accessoryBarAction
-            button.isBordered = false
-            button.imagePosition = .imageOnly
-            button.target = self
-            button.action = #selector(toggleStackDirectionAction)
-            button.setContentHuggingPriority(.required, for: .horizontal)
-            button.setContentCompressionResistancePriority(.required, for: .horizontal)
-
-            // Store button reference for updates
-            self.stackDirectionButton = button
-
-            // Use constraints instead of deprecated minSize/maxSize
-            button.translatesAutoresizingMaskIntoConstraints = false
-            NSLayoutConstraint.activate([
-                button.widthAnchor.constraint(equalToConstant: 28),
-                button.heightAnchor.constraint(equalToConstant: 28)
-            ])
-
-            toolbarItem.view = button
-            toolbarItem.label = ""
-            // Set initial tooltip dynamically based on current mode
-            updateTooltip(growsFromTop: GeneralPreferences.shared.stackGrowsFromTop)
-            return toolbarItem
-        default:
-            return nil
-        }
-    }
-
-    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [.flexibleSpace, NSToolbarItem.Identifier("stackDirection")]
-    }
-
-    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [.flexibleSpace, NSToolbarItem.Identifier("stackDirection")]
-    }
-
-    @objc private func toggleStackDirectionAction() {
-        GeneralPreferences.shared.stackGrowsFromTop.toggle()
-        let mode = GeneralPreferences.shared.stackGrowsFromTop ? "newest first" : "oldest first"
-        print("WindowManager: Paste order toggled to \(mode)")
     }
 }

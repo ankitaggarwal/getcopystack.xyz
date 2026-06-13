@@ -25,7 +25,7 @@ struct SettingsView: View {
         HStack(spacing: 0) {
             // Left sidebar
             VStack(spacing: 0) {
-                VStack(spacing: 6) {
+                VStack(spacing: 4) {
                     SidebarMenuItem(
                         icon: "gearshape",
                         title: "General",
@@ -65,64 +65,59 @@ struct SettingsView: View {
                 // Content
                 ScrollView {
                     if selectedTab == "general" {
-                        // General settings
-                        VStack(spacing: 0) {
-                            SettingToggleRow(
-                                title: "Open at login",
-                                isOn: $generalPreferences.openAtLogin,
-                                colorScheme: colorScheme
-                            )
+                        VStack(alignment: .leading, spacing: 18) {
+                            SectionLabel("General")
 
-                            Divider()
-                                .padding(.leading, 30)
+                            // Behaviour group
+                            SettingsCard {
+                                SettingToggleRow(
+                                    title: "Open at login",
+                                    subtitle: "Launch CopyStack when you sign in",
+                                    isOn: $generalPreferences.openAtLogin
+                                )
+                                CardDivider()
+                                SettingToggleRow(
+                                    title: "Sound effects",
+                                    subtitle: "Play a sound on copy and paste",
+                                    isOn: $generalPreferences.soundEffects
+                                )
+                            }
 
-                            SettingToggleRow(
-                                title: "Sound effects",
-                                isOn: $generalPreferences.soundEffects,
-                                colorScheme: colorScheme
-                            )
-
-                            Divider()
-                                .padding(.leading, 30)
-
-                            // History section
-                            HistoryRow(
-                                itemCount: clipboardStorage.items.count,
-                                onClear: {
-                                    showClearConfirmation = true
-                                },
-                                colorScheme: colorScheme
-                            )
+                            // History group
+                            SettingsCard {
+                                HistoryRow(
+                                    itemCount: clipboardStorage.items.count,
+                                    onClear: { showClearConfirmation = true }
+                                )
+                            }
                         }
-                        .padding(.horizontal, 30)
-                        .padding(.top, 20)
+                        .padding(.horizontal, 26)
+                        .padding(.top, 22)
+                        .padding(.bottom, 24)
                     } else if selectedTab == "shortcuts" {
-                        // Shortcuts settings
-                        VStack(spacing: 12) {
-                            // Shortcut row container
-                            VStack(spacing: 0) {
+                        VStack(alignment: .leading, spacing: 18) {
+                            SectionLabel("Shortcuts")
+
+                            SettingsCard {
                                 ShortcutRow(
                                     title: "Activate Paste Stack",
+                                    subtitle: "Copy the selection and open the stack",
                                     isRecording: $isRecording,
                                     currentKeysPressed: $currentKeysPressed,
                                     shortcutDisplay: shortcutPreferences.getShortcutDisplayString(),
                                     onRecordTap: {
                                         if !isRecording {
                                             isRecording = true
-                                            currentKeysPressed = "Press keys..."
+                                            currentKeysPressed = "Press keys…"
                                         }
-                                    },
-                                    onClearTap: {
-                                        // Clear shortcut if needed
                                     },
                                     colorScheme: colorScheme
                                 )
                             }
-                            .padding(.horizontal, 30)
-                            .padding(.top, 16)
                         }
+                        .padding(.horizontal, 26)
+                        .padding(.top, 22)
                     } else if selectedTab == "about" {
-                        // About section
                         AboutView(colorScheme: colorScheme)
                     }
                 }
@@ -131,24 +126,11 @@ struct SettingsView: View {
                 if selectedTab == "shortcuts" {
                     HStack {
                         Spacer()
-                        Button(action: {
+                        ResetButton {
                             shortcutPreferences.resetToDefault()
-                        }) {
-                            Text("Reset shortcuts to default...")
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .fill(Color(nsColor: colorScheme == .dark ?
-                                            NSColor(white: 0.25, alpha: 1.0) :
-                                            NSColor(white: 0.93, alpha: 1.0)))
-                                )
                         }
-                        .buttonStyle(.plain)
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, 26)
                     .padding(.vertical, 16)
                     .background(Color(nsColor: .windowBackgroundColor))
                 }
@@ -177,17 +159,71 @@ struct SettingsView: View {
     }
 }
 
+// MARK: - Reusable building blocks
+
+/// Quiet uppercase label that introduces a settings section.
+private struct SectionLabel: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Text(text.uppercased())
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(.secondary)
+            .kerning(0.6)
+    }
+}
+
+/// Rounded container that visually groups related rows (Law of Common Region).
+private struct SettingsCard<Content: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(spacing: 0) {
+            content
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(nsColor: colorScheme == .dark ?
+                    NSColor(white: 0.17, alpha: 1.0) :
+                    NSColor(white: 0.975, alpha: 1.0)))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.10 : 0.06), lineWidth: 1)
+        )
+    }
+}
+
+/// Hairline divider inset to align beneath a row's text.
+private struct CardDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.08))
+            .frame(height: 1)
+            .padding(.leading, 16)
+    }
+}
+
 // Setting toggle row component
 struct SettingToggleRow: View {
     let title: String
+    var subtitle: String? = nil
     @Binding var isOn: Bool
-    let colorScheme: ColorScheme
 
     var body: some View {
-        HStack {
-            Text(title)
-                .font(.system(size: 15))
-                .foregroundColor(.primary)
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.primary)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+            }
 
             Spacer()
 
@@ -196,75 +232,73 @@ struct SettingToggleRow: View {
                 .toggleStyle(SwitchToggleStyle())
                 .controlSize(.small)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 }
 
 // Shortcut row component
 struct ShortcutRow: View {
     let title: String
+    var subtitle: String? = nil
     @Binding var isRecording: Bool
     @Binding var currentKeysPressed: String
     let shortcutDisplay: String
     let onRecordTap: () -> Void
-    let onClearTap: () -> Void
     let colorScheme: ColorScheme
+
+    @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 16) {
-            Text(title)
-                .font(.system(size: 15))
-                .foregroundColor(.primary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.primary)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+            }
 
             Spacer()
 
-            HStack(spacing: 12) {
-                // Shortcut field
-                Button(action: onRecordTap) {
-                    Text(isRecording ? currentKeysPressed : shortcutDisplay)
-                        .font(.system(size: 14))
-                        .foregroundColor(.primary)
-                        .frame(minWidth: 90)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color(nsColor: colorScheme == .dark ?
-                                    NSColor(white: 0.2, alpha: 1.0) :
-                                    NSColor.white))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .strokeBorder(
+            // Shortcut field
+            Button(action: onRecordTap) {
+                Text(isRecording ? currentKeysPressed : shortcutDisplay)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundColor(isRecording ? .accentColor : .primary)
+                    .frame(minWidth: 84)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(nsColor: colorScheme == .dark ?
+                                NSColor(white: 0.24, alpha: 1.0) :
+                                NSColor.white))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(
+                                isRecording ? Color.accentColor.opacity(0.8) :
                                     Color(nsColor: colorScheme == .dark ?
-                                        NSColor(white: 0.35, alpha: 1.0) :
-                                        NSColor(white: 0.88, alpha: 1.0)),
-                                    lineWidth: 1
-                                )
-                        )
-                }
-                .buttonStyle(.plain)
-
-                // Clear button
-                Button(action: onClearTap) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.secondary)
-                        .frame(width: 24, height: 24)
-                }
-                .buttonStyle(.plain)
+                                        NSColor(white: 0.38, alpha: 1.0) :
+                                        NSColor(white: 0.86, alpha: 1.0)),
+                                lineWidth: isRecording ? 1.5 : 1
+                            )
+                    )
             }
+            .buttonStyle(.plain)
+            .scaleEffect(isHovered ? 1.03 : 1.0)
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.12)) { isHovered = hovering }
+                if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+            }
+            .animation(.easeInOut(duration: 0.15), value: isRecording)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(nsColor: colorScheme == .dark ?
-                    NSColor(white: 0.18, alpha: 1.0) :
-                    NSColor(white: 0.97, alpha: 1.0)))
-        )
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 }
 
@@ -275,16 +309,18 @@ struct SidebarMenuItem: View {
     let isSelected: Bool
     let action: () -> Void
 
+    @State private var isHovered = false
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Image(systemName: icon)
-                    .font(.system(size: 15))
+                    .font(.system(size: 14))
                     .foregroundColor(isSelected ? .white : .primary)
                     .frame(width: 18)
 
                 Text(title)
-                    .font(.system(size: 13))
+                    .font(.system(size: 13, weight: isSelected ? .medium : .regular))
                     .foregroundColor(isSelected ? .white : .primary)
 
                 Spacer()
@@ -293,10 +329,16 @@ struct SidebarMenuItem: View {
             .padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: 7)
-                    .fill(isSelected ? Color.accentColor : Color.clear)
+                    .fill(isSelected
+                        ? Color.accentColor
+                        : (isHovered ? Color.primary.opacity(0.07) : Color.clear))
             )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.12)) { isHovered = hovering }
+        }
     }
 }
 
@@ -304,42 +346,90 @@ struct SidebarMenuItem: View {
 struct HistoryRow: View {
     let itemCount: Int
     let onClear: () -> Void
-    let colorScheme: ColorScheme
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text("Clipboard history")
-                    .font(.system(size: 15))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.primary)
 
-                Text("\(itemCount) \(itemCount == 1 ? "item" : "items")")
-                    .font(.system(size: 12))
+                Text("\(itemCount) \(itemCount == 1 ? "item" : "items") in the stack")
+                    .font(.system(size: 11))
                     .foregroundColor(.secondary)
             }
 
             Spacer()
 
-            Button(action: onClear) {
-                Text("Clear")
-                    .font(.system(size: 12))
-                    .foregroundColor(itemCount > 0 ? .red : .secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 5)
-                            .fill(Color(nsColor: colorScheme == .dark ?
-                                NSColor(white: 0.25, alpha: 1.0) :
-                                NSColor(white: 0.93, alpha: 1.0)))
-                    )
-            }
-            .buttonStyle(.plain)
-            .disabled(itemCount == 0)
-            .offset(x: 4)  // Move button 4 pixels to the right to align with toggles
+            ClearHistoryButton(enabled: itemCount > 0, action: onClear)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+}
+
+/// Destructive "Clear" pill that only lights up red on hover when enabled.
+private struct ClearHistoryButton: View {
+    let enabled: Bool
+    let action: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Text("Clear")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(!enabled ? .secondary : (isHovered ? .white : .red))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(fillColor)
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .onHover { hovering in
+            guard enabled else { return }
+            withAnimation(.easeInOut(duration: 0.12)) { isHovered = hovering }
+            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
+    }
+
+    private var fillColor: Color {
+        if !enabled {
+            return Color.primary.opacity(colorScheme == .dark ? 0.10 : 0.06)
+        }
+        if isHovered { return .red }
+        return Color.red.opacity(colorScheme == .dark ? 0.18 : 0.10)
+    }
+}
+
+/// Subtle text button for resetting the shortcut to its default.
+private struct ResetButton: View {
+    let action: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Text("Reset shortcut to default")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color(nsColor: colorScheme == .dark ?
+                            NSColor(white: isHovered ? 0.30 : 0.25, alpha: 1.0) :
+                            NSColor(white: isHovered ? 0.90 : 0.93, alpha: 1.0)))
+                )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.12)) { isHovered = hovering }
+            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
     }
 }
 
@@ -358,15 +448,28 @@ struct AboutView: View {
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
-                .frame(height: 40)
+                .frame(height: 44)
 
-            // App icon
-            Image(systemName: "square.stack.3d.up.fill")
-                .font(.system(size: 48, weight: .light))
-                .foregroundColor(.accentColor)
+            // App icon in a soft rounded tile
+            ZStack {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.accentColor, Color.accentColor.opacity(0.7)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 76, height: 76)
+                    .shadow(color: Color.accentColor.opacity(0.35), radius: 10, y: 4)
+
+                Image(systemName: "square.stack.3d.up.fill")
+                    .font(.system(size: 38, weight: .medium))
+                    .foregroundColor(.white)
+            }
 
             Spacer()
-                .frame(height: 16)
+                .frame(height: 18)
 
             // App name
             Text("CopyStack")
@@ -377,20 +480,20 @@ struct AboutView: View {
             Text("A clipboard that remembers")
                 .font(.system(size: 14))
                 .foregroundColor(.secondary)
-                .padding(.top, 2)
+                .padding(.top, 3)
 
             Spacer()
-                .frame(height: 20)
+                .frame(height: 18)
 
             // Description
             Text("Copy everything first, then paste in order.")
                 .font(.system(size: 13))
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 300)
+                .frame(maxWidth: 320)
 
             Spacer()
-                .frame(height: 24)
+                .frame(height: 22)
 
             // Version
             Text("Version \(appVersion) (\(buildNumber))")
@@ -398,31 +501,46 @@ struct AboutView: View {
                 .foregroundColor(.secondary.opacity(0.8))
 
             Spacer()
-                .frame(height: 32)
+                .frame(height: 26)
 
             // Link to the project on GitHub. Update the URL to your repository.
-            Button(action: {
-                if let url = URL(string: "https://github.com/ankitaggarwal/getcopystack.xyz") {
-                    NSWorkspace.shared.open(url)
-                }
-            }) {
-                HStack(spacing: 4) {
-                    Image(systemName: "globe")
-                        .font(.system(size: 12))
-                    Text("View on GitHub")
-                        .font(.system(size: 12))
-                }
-                .foregroundColor(.accentColor)
-            }
-            .buttonStyle(.plain)
-            .onHover { hovering in
-                if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-            }
+            GitHubLink()
 
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, 30)
+    }
+}
+
+/// "View on GitHub" link with a quiet hover treatment.
+private struct GitHubLink: View {
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: {
+            if let url = URL(string: "https://github.com/ankitaggarwal/getcopystack.xyz") {
+                NSWorkspace.shared.open(url)
+            }
+        }) {
+            HStack(spacing: 5) {
+                Image(systemName: "globe")
+                    .font(.system(size: 12))
+                Text("View on GitHub")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .foregroundColor(.accentColor)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                Capsule().fill(Color.accentColor.opacity(isHovered ? 0.14 : 0.0))
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.12)) { isHovered = hovering }
+            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
     }
 }
 
