@@ -170,6 +170,14 @@ class WindowManager: NSObject {
 
     /// Resize the window to fit the current item count, keeping the top edge
     /// anchored so it grows downward from just below the menu bar.
+    ///
+    /// The animation is driven by Core Animation via the window's `animator()`
+    /// proxy rather than `setFrame(_:display:animate:)`. The latter spins a
+    /// *blocking* nested run loop for the duration of the animation, which —
+    /// happening on every copy/paste as the item count changes — can delay or
+    /// swallow the precisely-timed synthetic Cmd+V used to paste from the
+    /// stack. The animator proxy animates without blocking the run loop, so it
+    /// never interferes with pasting.
     private func updateWindowHeight(animated: Bool) {
         guard let window = window else { return }
         let newHeight = targetHeight(for: ClipboardStorage.shared.items.count)
@@ -181,7 +189,16 @@ class WindowManager: NSObject {
         frame.size.height = newHeight
         frame.size.width = Metrics.width
         frame.origin.y = top - newHeight
-        window.setFrame(frame, display: true, animate: animated)
+
+        if animated {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.22
+                context.allowsImplicitAnimation = true
+                window.animator().setFrame(frame, display: true)
+            }
+        } else {
+            window.setFrame(frame, display: true)
+        }
     }
 
     private func positionWindowBelowMenuBar() {
