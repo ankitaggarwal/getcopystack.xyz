@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CopyStack - A clipboard that remembers</title>
+<meta name="description" content="A macOS menu-bar app for sequential clipboard. Copy a few things from over here, paste them over there - in order, one at a time. Free and open source." />
+<meta name="theme-color" content="#f7f9fe" />
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon16.png" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="CopyStack - A clipboard that remembers" />
+<meta property="og:description" content="Copy everything first, then paste it back in order. A tiny, native macOS clipboard stack." />
+<meta property="og:url" content="https://getcopystack.xyz" />
+<meta property="og:image" content="https://getcopystack.xyz/assets/og.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="CopyStack - A clipboard that remembers" />
+<meta name="twitter:description" content="Copy everything first, then paste it back in order. A tiny, native macOS clipboard stack." />
+<meta name="twitter:image" content="https://getcopystack.xyz/assets/og.png" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="grain" aria-hidden="true"></div>
+
+<!-- ───────────────────────── NAV ───────────────────────── -->
+<header class="nav" id="nav">
+  <a class="brand" href="#top" aria-label="CopyStack home">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 48 48" width="28" height="28"><use href="#cs-logo"/></svg>
+    </span>
+    <span class="brand-name">CopyStack</span>
+  </a>
+  <nav class="nav-links" aria-label="Primary">
+    <a href="#how">How it works</a>
+    <a href="#features">Features</a>
+    <a href="#gallery">Screens</a>
+    <a class="ghost" href="https://github.com/ankitaggarwal/getcopystack.xyz" target="_blank" rel="noopener">GitHub</a>
+  </nav>
+  <a class="btn btn-primary nav-cta" href="https://github.com/ankitaggarwal/getcopystack.xyz/releases/latest/download/CopyStack.dmg">
+    <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0l-4.2-4.2M12 15l4.2-4.2M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Download
+  </a>
+</header>
+
+<main id="top">
+
+<!-- ───────────────────────── HERO ───────────────────────── -->
+<section class="hero">
+  <div class="hero-bg" aria-hidden="true">
+    <span class="blob blob-a"></span>
+    <span class="blob blob-b"></span>
+    <span class="grid-fade"></span>
+  </div>
+
+  <div class="hero-inner">
+    <div class="hero-copy">
+      <p class="eyebrow reveal">
+        <span class="dot"></span> macOS menu-bar app · v1.1.4
+      </p>
+      <h1 class="hero-title">
+        <span class="line reveal">Copy everything.</span>
+        <span class="line reveal"><em>Paste it in order.</em></span>
+      </h1>
+      <p class="hero-sub reveal">
+        No more copy, switch, paste, switch back. Grab everything you need in one pass -
+        CopyStack stacks it up and hands it back <strong>in order</strong> as you paste.
+      </p>
+      <div class="hero-cta reveal">
+        <a class="btn btn-primary btn-lg" href="https://github.com/ankitaggarwal/getcopystack.xyz/releases/latest/download/CopyStack.dmg">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0l-4.2-4.2M12 15l4.2-4.2M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Download for Mac
+        </a>
+        <a class="btn btn-ghost btn-lg" href="https://github.com/ankitaggarwal/getcopystack.xyz" target="_blank" rel="noopener">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49 0-.24-.01-.88-.01-1.73-2.78.62-3.37-1.37-3.37-1.37-.46-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.57 2.34 1.12 2.91.85.09-.66.35-1.12.63-1.38-2.22-.26-4.55-1.14-4.55-5.05 0-1.12.39-2.03 1.03-2.74-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.05a9.3 9.3 0 0 1 5 0c1.91-1.32 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.71 1.03 1.62 1.03 2.74 0 3.92-2.34 4.78-4.57 5.04.36.32.68.94.68 1.9 0 1.37-.01 2.48-.01 2.82 0 .27.18.6.69.49A10.02 10.02 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"/></svg>
+          Source on GitHub
+        </a>
+      </div>
+      <ul class="hero-meta reveal">
+        <li><svg class="tick" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Free &amp; open source</li>
+        <li><svg class="tick" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Notarized by Apple</li>
+        <li><svg class="tick" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> macOS 13+ · Apple Silicon &amp; Intel</li>
+      </ul>
+    </div>
+
+    <!-- Signature: live, self-assembling stack -->
+    <div class="hero-stage reveal" aria-hidden="true">
+      <div class="window-shadow"></div>
+      <div class="cs-window" id="demo">
+        <div class="cs-titlebar"><span class="dot-r"></span></div>
+        <div class="cs-head">
+          <span class="cs-count"><b id="demo-count">5</b> items</span>
+          <span class="cs-clear">Clear</span>
+        </div>
+        <ul class="cs-list" id="demo-list"></ul>
+      </div>
+      <div class="keyflow" id="keycaps">
+        <div class="kf-step" data-act="open">
+          <div class="kf-keys"><span class="cap">⇧</span><span class="cap">⌘</span><span class="cap">C</span></div>
+          <span class="kf-label">open</span>
+        </div>
+        <span class="kf-arrow">→</span>
+        <div class="kf-step" data-act="copy">
+          <div class="kf-keys"><span class="cap">⌘</span><span class="cap">C</span></div>
+          <span class="kf-label">collect</span>
+        </div>
+        <span class="kf-arrow">→</span>
+        <div class="kf-step" data-act="paste">
+          <div class="kf-keys"><span class="cap">⌘</span><span class="cap">V</span></div>
+          <span class="kf-label">paste</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="scroll-hint reveal" aria-hidden="true"><span></span></div>
+</section>
+
+<!-- ───────────────────────── HOW IT WORKS ───────────────────────── -->
+<section class="how" id="how">
+  <div class="section-head reveal">
+    <p class="kicker">How it works</p>
+    <h2>Three keystrokes. That's it.</h2>
+    <p class="lede">Monitoring only runs while the stack is open, so the rest of the time
+      your <span class="mono">⌘V</span> stays exactly as boring as it should be.</p>
+  </div>
+
+  <ol class="steps">
+    <li class="step reveal">
+      <div class="step-keys"><span class="kc">⇧</span><span class="kc">⌘</span><span class="kc">C</span></div>
+      <h3>Collect</h3>
+      <p>Hit the shortcut to copy your selection <em>and</em> pop open the floating stack.
+        Everything you copy after that lands on top.</p>
+    </li>
+    <li class="step reveal">
+      <div class="step-keys"><span class="kc">⌘</span><span class="kc">C</span><span class="kc wide">again &amp; again</span></div>
+      <h3>Pile it up</h3>
+      <p>The stack is already open, so a plain <span class="mono">⌘C</span> keeps adding -
+        text, links, images, video, files, captured in the order you grab them.</p>
+    </li>
+    <li class="step reveal">
+      <div class="step-keys"><span class="kc">⌘</span><span class="kc">V</span></div>
+      <h3>Paste in order</h3>
+      <p>Each <span class="mono">⌘V</span> drops the next item and advances the stack.
+        When it's empty, paste goes right back to normal.</p>
+    </li>
+  </ol>
+
+  <div class="how-cta reveal">
+    <button class="btn btn-soft" id="replay">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 1 2.3 5.6M4 12V7m0 5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Replay the demo
+    </button>
+    <span class="how-note">↑ watch the stack fill and empty itself in the hero</span>
+  </div>
+</section>
+
+<!-- ───────────────────────── FEATURES ───────────────────────── -->
+<section class="features" id="features">
+  <div class="section-head reveal">
+    <p class="kicker">Why it's nice</p>
+    <h2>Small app. Sharp focus.</h2>
+  </div>
+  <div class="feat-grid">
+    <article class="feat reveal feat-wide">
+      <div class="feat-ic">
+        <span class="chip">Aa</span><span class="chip">link</span><span class="chip">img</span><span class="chip">mp4</span><span class="chip">pdf</span>
+      </div>
+      <h3>Captures everything you copy</h3>
+      <p>Text, web links, images, videos and files - detected automatically. Videos keep their raw
+        pasteboard data, so they re-paste perfectly into apps like Slack and WhatsApp.</p>
+    </article>
+    <article class="feat reveal">
+      <div class="feat-ic"><svg viewBox="0 0 24 24"><path d="M6 8h12M6 12h12M6 16h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+      <h3>Sequential paste</h3>
+      <p>Items pop off the stack as you paste them - no scrolling a history, no picking.</p>
+    </article>
+    <article class="feat reveal">
+      <div class="feat-ic"><svg viewBox="0 0 24 24"><path d="M8 6v12m0 0l-3-3m3 3l3-3M16 18V6m0 0l-3 3m3-3l3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <h3>Newest or oldest first</h3>
+      <p>Paste the last thing you copied first, or the first thing first. Flip the order with one click.</p>
+    </article>
+    <article class="feat reveal">
+      <div class="feat-ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 8h18" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="6" r=".8" fill="currentColor"/></svg></div>
+      <h3>Lives in the menu bar</h3>
+      <p>No Dock icon, no clutter. Polling runs only while the stack is open - light on your CPU.</p>
+    </article>
+    <article class="feat reveal">
+      <div class="feat-ic"><svg viewBox="0 0 24 24"><path d="M12 4l1.8 4.6L18.5 9l-3.5 3 1 4.8L12 14.6 8 16.8l1-4.8L5.5 9l4.7-.4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
+      <h3>Your shortcut</h3>
+      <p>Default is <span class="mono">⇧⌘C</span>, but make it whatever you like in Settings.</p>
+    </article>
+    <article class="feat reveal">
+      <div class="feat-ic"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M21 3v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <h3>Stays current</h3>
+      <p>Built-in “Check for Updates” pulls signed, notarized builds straight from GitHub Releases.</p>
+    </article>
+  </div>
+</section>
+
+<!-- ───────────────────────── GALLERY ───────────────────────── -->
+<section class="gallery" id="gallery">
+  <div class="section-head reveal">
+    <p class="kicker">A closer look</p>
+    <h2>Quiet, native, out of the way.</h2>
+  </div>
+  <div class="shots">
+    <figure class="shot shot-lead reveal">
+      <img src="assets/stack.png" alt="CopyStack stack window with five collected items" loading="lazy" />
+      <figcaption>The stack - next up is highlighted.</figcaption>
+    </figure>
+    <figure class="shot reveal">
+      <img src="assets/empty.png" alt="Empty stack state" loading="lazy" />
+      <figcaption>Empty &amp; waiting.</figcaption>
+    </figure>
+    <figure class="shot reveal">
+      <img src="assets/shortcuts.png" alt="Shortcuts settings" loading="lazy" />
+      <figcaption>Pick your shortcut.</figcaption>
+    </figure>
+    <figure class="shot shot-wide reveal">
+      <img src="assets/settings.png" alt="General settings" loading="lazy" />
+      <figcaption>Settings stay out of the way.</figcaption>
+    </figure>
+    <figure class="shot shot-wide reveal">
+      <img src="assets/about.png" alt="About CopyStack" loading="lazy" />
+      <figcaption>A clipboard that remembers.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ───────────────────────── DOWNLOAD CTA ───────────────────────── -->
+<section class="cta" id="download">
+  <div class="cta-card reveal">
+    <span class="cta-glow" aria-hidden="true"></span>
+    <span class="brand-mark big" aria-hidden="true"><svg viewBox="0 0 48 48" width="62" height="62"><use href="#cs-logo"/></svg></span>
+    <h2>Get the stack.</h2>
+    <p>Free, open source, and notarized. Drop it in your Applications folder and grant
+       Accessibility once - that's the whole setup.</p>
+    <div class="cta-actions">
+      <a class="btn btn-primary btn-lg" href="https://github.com/ankitaggarwal/getcopystack.xyz/releases/latest/download/CopyStack.dmg">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0l-4.2-4.2M12 15l4.2-4.2M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Download CopyStack.dmg
+      </a>
+      <a class="btn btn-ghost btn-lg" href="https://github.com/ankitaggarwal/getcopystack.xyz/releases" target="_blank" rel="noopener">All releases</a>
+    </div>
+    <p class="cta-fine">Requires macOS 13 Ventura or later · Accessibility permission (to simulate ⌘C / ⌘V)</p>
+  </div>
+</section>
+
+</main>
+
+<!-- ───────────────────────── FOOTER ───────────────────────── -->
+<footer class="foot">
+  <div class="foot-inner">
+    <a class="brand" href="#top">
+      <span class="brand-mark"><svg viewBox="0 0 48 48" width="24" height="24"><use href="#cs-logo"/></svg></span>
+      <span class="brand-name">CopyStack</span>
+    </a>
+    <nav class="foot-links" aria-label="Footer">
+      <a href="https://github.com/ankitaggarwal/getcopystack.xyz" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/ankitaggarwal/getcopystack.xyz/releases" target="_blank" rel="noopener">Releases</a>
+      <a href="https://github.com/ankitaggarwal/getcopystack.xyz/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+    </nav>
+    <p class="foot-fine">Made for the “copy a few things, paste them over there” task.</p>
+  </div>
+</footer>
+
+<!-- Reusable SVG logo (blue squircle + stacked layers) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="cs-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4A90FF"/><stop offset="1" stop-color="#2863E8"/>
+    </linearGradient>
+    <symbol id="cs-logo" viewBox="0 0 48 48">
+      <rect x="1" y="1" width="46" height="46" rx="11" fill="url(#cs-grad)"/>
+      <path d="M24 13l11 5.5L24 24 13 18.5 24 13z" fill="#fff"/>
+      <path d="M24 22.2l11 5.5L24 33.2 13 27.7 24 22.2z" fill="#fff" opacity=".82"/>
+      <path d="M24 31.4l11 5.5L24 42.4 13 36.9 24 31.4z" fill="#fff" opacity=".6"/>
+    </symbol>
+  </defs>
+</svg>
+
+<script src="app.js"></script>
+</body>
+</html>
